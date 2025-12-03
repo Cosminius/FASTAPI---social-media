@@ -47,4 +47,3 @@ async def get_feed(session: AsyncSession = Depends(get_async_session)):
         )
     return {"posts": posts_data}
 
-

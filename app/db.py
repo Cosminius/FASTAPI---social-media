@@ -13,8 +13,9 @@ Base = declarative_base()
 class Post(Base):
     __tablename__ = "posts"
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    title = Column(String(200), nullable=False)
+    caption = Column(String(200), nullable=False)
     url = Column(String(200), nullable=False)
+    file_type = Column(String(50), nullable=False)
     file_name = Column(String(200), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
