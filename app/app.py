@@ -5,7 +5,13 @@ from app.db import Post, create_db_and_tables, get_async_session
 from sqlalchemy.ext.asyncio import AsyncSession
 from contextlib import asynccontextmanager
 from app.images import ImageKit
-from imagekitio.models.UploadFileRequest import UploadFileRequest
+from imagekitio.models.UploadFileRequestOptions import UploadFileRequestOptions
+import shutil
+import os
+import uuid
+import tempfile
+import imagekit
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -21,16 +27,39 @@ async def upload_post(
     caption: str = Form(...),
     session: AsyncSession = Depends(get_async_session)
 ):
-    post = Post(
-        caption=caption,
-        url="dummyurl",
-        file_type="photo",
-        file_name="dummy name"
+    temp_file_path =None
+    
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as temp_file:
+            shutil.copyfileobj(file.file, temp_file)
+            temp_file_path = temp_file.name
+        upload_result =imagekit.upload_file(
+            file=open(temp_file_path, "rb"),
+            file_name=file.filename,
+            options=UploadFileRequestOptions(
+            use_unique_file_name=True,
+            tags=["backend-upload"]
+            )
+        )
+
+        if upload_result.response.http_status_code != 200:
+            post = Post(
+                caption=caption,
+                url=upload_result.url,
+                file_type="video" if file.content_type.startswith("video/") else "image",
+                file_name=file.filename
     )
-    session.add(post)
-    await session.commit()
-    await session.refresh(post)
-    return post
+            session.add(post)
+            await session.commit()
+            await session.refresh(post)
+            return post
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+    finally: 
+        if temp_file_path and os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+        file.file.close()
 
 @app.get("/feed")
 async def get_feed(session: AsyncSession = Depends(get_async_session)):
