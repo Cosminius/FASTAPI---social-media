@@ -77,7 +77,12 @@ async def upload_post(
 @app.get("/feed")
 async def get_feed(user: User = Depends(current_active_user), session: AsyncSession = Depends(get_async_session)):
     result = await session.execute(select(Post).options(selectinload(Post.owner)).order_by(Post.created_at.desc()))
-    posts = result.scalars().all()
+    posts = [row[0] for row in result.all()]
+
+    result = await session.execute(select(User).where(User.id == user.id))
+    users = [row[0] for row in result.all()]
+    user_dict = {user.id: user for user in users}
+
     posts_data = []
     for post in posts:
         posts_data.append(
@@ -89,7 +94,7 @@ async def get_feed(user: User = Depends(current_active_user), session: AsyncSess
                 "file_name": post.file_name,
                 "created_at": post.created_at.isoformat() if post.created_at else None,
                 "isowner": post.user_id == user.id,
-                "email": post.owner.email if post.owner else None
+                "email": user_dict.get(post.user_id, "Unknown")
             }
         )
     return {"posts": posts_data}
