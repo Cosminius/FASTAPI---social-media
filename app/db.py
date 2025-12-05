@@ -20,7 +20,7 @@ class User(Base, SQLAlchemyBaseUserTableUUID):
 class Post(Base):
     __tablename__ = "posts"
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(UUID(as_uuid=True), ForeignKey("user.id"),  nullable=False)
+    user_id = Column(String(36), ForeignKey("user.id"),  nullable=False)
     caption = Column(String(200), nullable=False)
     url = Column(String(200), nullable=False)
     file_type = Column(String(50), nullable=False)

@@ -57,7 +57,7 @@ async def upload_post(
 
         post = Post(
             caption=caption,
-            user_id=user.id,
+            user_id=str(user.id),
             url=url,
             file_type="video" if file.content_type and file.content_type.startswith("video/") else "image",
             file_name=file.filename
@@ -76,25 +76,37 @@ async def upload_post(
 
 @app.get("/feed")
 async def get_feed(user: User = Depends(current_active_user), session: AsyncSession = Depends(get_async_session)):
-    result = await session.execute(select(Post).options(selectinload(Post.owner)).order_by(Post.created_at.desc()))
-    posts = [row[0] for row in result.all()]
+    # Get all posts
+    result = await session.execute(
+        select(Post).order_by(Post.created_at.desc())
+    )
+    posts = result.scalars().all()
 
-    result = await session.execute(select(User).where(User.id == user.id))
-    users = [row[0] for row in result.all()]
-    user_dict = {user.id: user for user in users}
+    # Get all unique user IDs from posts
+    user_ids = list(set([post.user_id for post in posts]))
+    
+    # Fetch all users for those IDs
+    user_result = await session.execute(
+        select(User).where(User.id.in_(user_ids))
+    )
+    users = user_result.scalars().all()
+    user_dict = {str(u.id): u.email for u in users}
 
     posts_data = []
     for post in posts:
+        email = user_dict.get(str(post.user_id), "Unknown")
+        
         posts_data.append(
             {
                 "id": str(post.id),
                 "user_id": str(post.user_id),
                 "caption": post.caption,
                 "url": post.url,
+                "file_type": post.file_type,
                 "file_name": post.file_name,
                 "created_at": post.created_at.isoformat() if post.created_at else None,
-                "isowner": post.user_id == user.id,
-                "email": user_dict.get(post.user_id, "Unknown")
+                "is_owner": str(post.user_id) == str(user.id),
+                "email": email
             }
         )
     return {"posts": posts_data}
@@ -112,7 +124,7 @@ async def delete_post(
         
         if not post:
             raise HTTPException(status_code=404, detail="Post not found")
-        if post.user_id != user.id:
+        if str(post.user_id) != str(user.id):
             raise HTTPException(status_code=403, detail="Not authorized to delete this post")
         
         await session.delete(post)
