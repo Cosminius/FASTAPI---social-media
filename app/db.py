@@ -6,7 +6,7 @@ from fastapi_users import UUIDIDMixin
 from sqlalchemy import UUID, Column, ForeignKey, String, DateTime
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import declarative_base, relationship
-from fastapi_users.db import SQLAlchemyBaseUserTableUUID, SQLAlchemyUserDatabase
+from fastapi_users_db_sqlalchemy import SQLAlchemyBaseUserTableUUID, SQLAlchemyUserDatabase
 
 DATABASE_URL = "sqlite+aiosqlite:///./test.db"
 
@@ -26,7 +26,7 @@ class Post(Base):
     file_type = Column(String(50), nullable=False)
     file_name = Column(String(200), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
-    user = relationship("User", back_populates="posts")
+    owner = relationship("User", back_populates="posts")
 
 engine = create_async_engine(DATABASE_URL, echo=True)
 async_session_maker = async_sessionmaker(engine, expire_on_commit=False)
@@ -41,4 +41,4 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 async def get_user_db(session: AsyncSession = Depends(get_async_session)):
-    yield SQLAlchemyUserDatabase(UUIDIDMixin, session, User)
+    yield SQLAlchemyUserDatabase(session, User)
