@@ -8,7 +8,9 @@ import shutil
 import os
 import tempfile
 from app.images import imagekit_client
-
+import uuid
+from app.users import auth_backend, current_active_user, fastapi_users
+from app.schemas import UserCreate, UserRead, UserUpdate
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -17,6 +19,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+app.include_router(fastapi_users.get_auth_router(auth_backend),prefix="/auth/jwt",tags=["auth"])
+app.include_router(fastapi_users.get_register_router(UserRead, UserCreate), prefix="/auth", tags=["auth"])
+app.include_router(fastapi_users.get_reset_password_router(), prefix="/auth", tags=["auth"])
+app.include_router(fastapi_users.get_verify_router(UserRead), prefix="/auth", tags=["auth"])
 
 @app.post("/upload/")
 async def upload_post(
@@ -79,3 +86,22 @@ async def get_feed(session: AsyncSession = Depends(get_async_session)):
             }
         )
     return {"posts": posts_data}
+
+@app.delete("/post/{post_id}")
+async def delete_post(post_id: str, session: AsyncSession = Depends(get_async_session)):
+    try:
+        post_uuid = uuid.UUID(post_id)
+        result = await session.execute(select(Post).where(Post.id == str(post_uuid)))
+        post = result.scalars().first()
+        
+        if not post:
+            raise HTTPException(status_code=404, detail="Post not found")
+        
+        await session.delete(post)
+        await session.commit()
+
+        return {"success" : True, "message": "Post deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    
